@@ -7,9 +7,16 @@ function updateTimer(){if(!state.started||state.ended)return;const s=Math.max(0,
 async function api(action,history){const cfg=window.ROLEPLAY_CONFIG||{};
 
 if (!cfg.accessCode) {
-  cfg.accessCode = window.prompt(
+  const code = window.prompt(
     'Please enter the classroom access code provided by your instructor:'
-  ) || '';
+  );
+
+  if (!code || !code.trim()) {
+    throw new Error('A classroom access code is required.');
+  }
+
+  cfg.accessCode = code.trim();
+}
 }if(!cfg.apiUrl||cfg.apiUrl.includes('REPLACE_WITH'))throw Error('Instructor setup required: configure docs/config.js with the deployed API URL.');const response=await fetch(cfg.apiUrl,{method:'POST',headers:{'Content-Type':'application/json',...(cfg.accessCode?{'X-Roleplay-Code':cfg.accessCode}:{})},body:JSON.stringify({action,history,sessionToken:state.sessionToken})});let data;try{data=await response.json()}catch{throw Error('The server returned an unreadable response.')}if(!response.ok)throw Error(data.error||`Server error ${response.status}`);return data;}
 async function start(){if(state.started)return;setBusy(true);try{const data=await api('start',[]);state.started=true;state.sessionToken=data.sessionToken;state.deadline=data.expiresAt;$('messages').replaceChildren();state.history=[{role:'assistant',content:data.message}];renderMessage('assistant',data.message);state.interval=setInterval(updateTimer,250);updateTimer();}catch(e){alert(e.message)}finally{setBusy(false)}}
 async function send(e){e.preventDefault();if(state.busy||state.ended||Date.now()>=state.deadline)return;const content=$('answer').value.trim();if(!content)return;const prior=state.history.slice();state.history.push({role:'user',content});renderMessage('user',content);$('answer').value='';$('count').textContent='0 / 3500';setBusy(true);try{const data=await api('reply',state.history);if(Date.now()<state.deadline){state.history.push({role:'assistant',content:data.message});renderMessage('assistant',data.message);}if(data.finished){setBusy(false);await finish();}}catch(e){if(Date.now()<state.deadline){state.history=prior;$('messages').lastElementChild?.remove();$('answer').value=content;alert(e.message)}}finally{setBusy(false);updateTimer()}}
