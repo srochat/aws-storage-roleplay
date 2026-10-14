@@ -20,6 +20,48 @@ if (!cfg.accessCode) {
 if(!cfg.apiUrl||cfg.apiUrl.includes('REPLACE_WITH'))throw Error('Instructor setup required: configure docs/config.js with the deployed API URL.');const response=await fetch(cfg.apiUrl,{method:'POST',headers:{'Content-Type':'application/json',...(cfg.accessCode?{'X-Roleplay-Code':cfg.accessCode}:{})},body:JSON.stringify({action,history,sessionToken:state.sessionToken})});let data;try{data=await response.json()}catch{throw Error('The server returned an unreadable response.')}if(!response.ok)throw Error(data.error||`Server error ${response.status}`);return data;}
 async function start(){if(state.started)return;setBusy(true);try{const data=await api('start',[]);state.started=true;state.sessionToken=data.sessionToken;state.deadline=data.expiresAt;$('messages').replaceChildren();state.history=[{role:'assistant',content:data.message}];renderMessage('assistant',data.message);state.interval=setInterval(updateTimer,250);updateTimer();}catch(e){alert(e.message)}finally{setBusy(false)}}
 async function send(e){e.preventDefault();if(state.busy||state.ended||Date.now()>=state.deadline)return;const content=$('answer').value.trim();if(!content)return;const prior=state.history.slice();state.history.push({role:'user',content});renderMessage('user',content);$('answer').value='';$('count').textContent='0 / 3500';setBusy(true);try{const data=await api('reply',state.history);if(Date.now()<state.deadline){state.history.push({role:'assistant',content:data.message});renderMessage('assistant',data.message);}if(data.finished){setBusy(false);await finish();}}catch(e){if(Date.now()<state.deadline){state.history=prior;$('messages').lastElementChild?.remove();$('answer').value=content;alert(e.message)}}finally{setBusy(false);updateTimer()}}
-async function finish(force=false){if(!state.started||state.ended)return;if(state.busy){if(force){state.finishing=true;setTimeout(()=>finish(true),350); }return;}if(state.assessing)return;state.assessing=true;setBusy(true);try{const data=await api('assess',state.history);state.feedback=data;state.ended=true;clearInterval(state.interval);$('feedback').hidden=false;$('feedback').replaceChildren();const title=document.createElement('h2');title.textContent=`Your feedback — ${data.score}/10`;const body=document.createElement('div');body.textContent=data.feedback;$('feedback').append(title,body);$('download').hidden=false;$('feedback').scrollIntoView({behavior:'smooth',block:'start'});}catch(e){alert(e.message)}finally{state.assessing=false;setBusy(false)}}
+
+function renderFeedback(container, feedback) {
+  const headings = [
+    'Overall assessment',
+    'What you did well',
+    'Areas for improvement',
+    'How to improve your answer'
+  ];
+
+  const lines = String(feedback || '').split(/\r?\n/);
+  let section = container;
+
+  for (const line of lines) {
+    const clean = line.trim();
+    if (!clean) continue;
+
+    const heading = headings.find(
+      h => clean.replace(/^#+\s*/, '').replace(/\*\*/g, '')
+        .replace(/:$/, '').trim().toLowerCase() === h.toLowerCase()
+    );
+
+    if (heading) {
+      section = document.createElement('section');
+      section.style.marginTop = '20px';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = heading;
+      h3.style.marginBottom = '8px';
+
+      section.appendChild(h3);
+      container.appendChild(section);
+    } else {
+      const p = document.createElement('p');
+      p.textContent = clean;
+      p.style.margin = '8px 0';
+      p.style.lineHeight = '1.6';
+      section.appendChild(p);
+    }
+  }
+}
+async function finish(force=false){if(!state.started||state.ended)return;if(state.busy){if(force){state.finishing=true;setTimeout(()=>finish(true),350); }return;}if(state.assessing)return;state.assessing=true;setBusy(true);try{const data=await api('assess',state.history);state.feedback=data;state.ended=true;clearInterval(state.interval);$('feedback').hidden=false;$('feedback').replaceChildren();const title=document.createElement('h2');title.textContent=`Your feedback — ${data.score}/10`;const body = document.createElement('div');
+renderFeedback(body, data.feedback);
+$('feedback').append(title, body);$('download').hidden=false;$('feedback').scrollIntoView({behavior:'smooth',block:'start'});}catch(e){alert(e.message)}finally{state.assessing=false;setBusy(false)}}
 function download(){const lines=['AWS Storage Role-Play — Module 7','',...state.history.map(x=>`${x.role==='assistant'?'Olivia':'Student'}:\n${x.content}\n`),'',`Score: ${state.feedback?.score??'Not assessed'}/10`,state.feedback?.feedback||''];const blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='aws-storage-roleplay-feedback.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 $('start').addEventListener('click',start);$('form').addEventListener('submit',send);$('finish').addEventListener('click',finish);$('restart').addEventListener('click',()=>{if(confirm('Restart and clear this conversation?'))location.reload()});$('download').addEventListener('click',download);$('answer').addEventListener('input',()=>{$('count').textContent=`${$('answer').value.length} / 3500`});$('answer').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))$('form').requestSubmit()});
