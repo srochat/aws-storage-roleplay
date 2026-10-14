@@ -1,0 +1,1 @@
+{"name":"aws-storage-roleplay-backend","private":true,"type":"module","version":"1.0.0","dependencies":{"@aws-sdk/client-secrets-manager":"^3.800.0"},"engines":{"node":">=20"}}

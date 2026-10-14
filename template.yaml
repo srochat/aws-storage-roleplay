@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AWS Module 7 storage role-play backend
+Parameters:
+  OpenAISecretArn:
+    Type: String
+    Description: ARN of an AWS Secrets Manager secret containing OPENAI_API_KEY
+  AllowedOrigin:
+    Type: String
+    Description: Exact GitHub Pages origin, e.g. https://yourname.github.io (no trailing slash)
+  AccessCode:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Optional basic classroom access code (NOT strong authentication)
+  SessionSigningSecret:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: Random 32+ character secret used to sign 10-minute session tokens
+  OpenAIModel:
+    Type: String
+    Default: gpt-4.1-mini
+Globals:
+  Function:
+    Timeout: 29
+    MemorySize: 256
+    Runtime: nodejs22.x
+Resources:
+  RoleplayApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowHeaders:
+          - Content-Type
+          - X-Roleplay-Code
+        AllowMethods:
+          - POST
+        MaxAge: 600
+  RoleplayFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: app.handler
+      Environment:
+        Variables:
+          OPENAI_SECRET_ARN: !Ref OpenAISecretArn
+          ACCESS_CODE: !Ref AccessCode
+          OPENAI_MODEL: !Ref OpenAIModel
+          SESSION_SIGNING_SECRET: !Ref SessionSigningSecret
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref OpenAISecretArn
+      Events:
+        Chat:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref RoleplayApi
+            Path: /chat
+            Method: POST
+Outputs:
+  ChatEndpoint:
+    Description: Paste this URL into docs/config.js
+    Value: !Sub 'https://${RoleplayApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/chat'
