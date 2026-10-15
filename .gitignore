@@ -1,0 +1,23 @@
+
+# AWS SAM deployment configuration
+samconfig.toml
+.aws-sam/
+
+# Environment variables and secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Temporary files
+*.log
+*.tmp
